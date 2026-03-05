@@ -1,0 +1,50 @@
+spring:
+  application:
+    name: Try
+
+  servlet:
+    multipart:
+      max-file-size: 30MB
+      max-request-size: 40MB
+
+
+
+  ai:
+    openai:
+      base-url: https://dashscope.aliyuncs.com/compatible-mode
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: qwen3-max
+      embedding:
+        options:
+          model: text-embedding-v3
+          max-tokens: 1024
+
+
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/aiproject?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: 123456
+
+
+#是 Spring AI 框架中负责**聊天客户端 advisor（顾问/拦截器）**的包路径
+#Advisor 是 Spring AI 中的一种机制，用于在消息发送前后进行拦截和处理
+logging:
+  level:
+    org.springframework.ai: debug
+    com.Storm: debug
+
+
+
+
+
+
+
+
+
+
+
+
+
