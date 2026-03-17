@@ -3,8 +3,13 @@ package com.Storm.handler;
 import com.Storm.entity.vo.Result;
 import com.Storm.exception.*;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.validation.BindException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import javax.validation.ConstraintViolation;
+import javax.validation.ConstraintViolationException;
 
 
 /*实际开发中的最佳实践（总结）
@@ -30,6 +35,30 @@ public class GlobalExceptionHandler {
    //@ExceptionHandler就是表示具体的处理逻辑
 
 
+    // ========== 新增1：处理@Valid + @RequestBody（JSON参数）的校验异常 ==========
+    @ExceptionHandler({MethodArgumentNotValidException.class, BindException.class})
+    public Result<?> handleValidationException(MethodArgumentNotValidException e) {
+        // 提取校验失败的字段+提示信息（比如“type：会话类型不合法”）
+        String errorMsg = e.getBindingResult().getFieldErrors().stream()
+                .map(fieldError -> fieldError.getField() + "：" + fieldError.getDefaultMessage())
+                .findFirst()
+                .orElse("参数校验失败");
+        log.info("JSON参数校验异常：{}", errorMsg);
+        // 复用你的ParamValidationException的400错误码，保持异常体系统一
+        return Result.fail(400, errorMsg);
+    }
+
+    // ========== 新增2：处理@Validated + @RequestParam/@PathVariable（非JSON参数）的校验异常 ==========
+    @ExceptionHandler(ConstraintViolationException.class)
+    public Result<?> handleConstraintViolationException(ConstraintViolationException e) {
+        // 提取校验失败的提示信息（比如“会话类型不合法（支持：chat/service/pdf/game）”）
+        String errorMsg = e.getConstraintViolations().stream()
+                .map(ConstraintViolation::getMessage)
+                .collect(java.util.stream.Collectors.joining("；"));
+        log.info("URL/路径参数校验异常：{}", errorMsg);
+        // 同样返回400错误码，和ParamValidationException保持一致
+        return Result.fail(400, errorMsg);
+    }
 
 
     // 新增：处理参数校验异常

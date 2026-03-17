@@ -1,8 +1,5 @@
 package com.Storm.config;
 
-/**配置类目前缺少 Bean 初始化阶段的异常处理——Bean 的创建发生在项目启动时，
- // 如果初始化失败（比如依赖缺失、配置错误），会导致项目启动崩溃，且报错信息杂乱（原生 Spring 异常），
- // 无法快速定位问题。以下是需要优化的点，且完全贴合自定义异常体系：**/
 import org.springframework.ai.chat.memory.InMemoryChatMemory;
 import org.springframework.context.annotation.Configuration;
 import com.Storm.constants.SystemConstants;
@@ -36,14 +33,15 @@ public class AiConfiguration {
     @Bean
     public ChatMemory chatMemory() {
         try {
-            return new InMemoryChatMemory();
+            InMemoryChatMemory chatMemory = new InMemoryChatMemory();
+            log.info("ChatMemory（会话内存）初始化成功"); // 新增：成功日志，便于启动排查
+            return chatMemory;
         } catch (Exception e) {
-            log.error("ChatMemory（会话内存）初始化失败", e);
-            // 抛业务异常，明确启动失败原因（500：系统级初始化错误）//这里的getMessage是父类RuntimeException的getMessage方法
-            throw new BusinessException(500, "会话内存初始化失败：" + e.getMessage());
+            log.error("【Bean初始化失败】ChatMemory（会话内存）初始化失败", e); // 优化：日志前缀统一，定位更准
+            // 异常信息补充关键提示（如“请检查内存配置/依赖”）
+            throw new BusinessException(500, "会话内存初始化失败：" + e.getMessage() + "，请检查Spring AI内存依赖是否正常");
         }
     }
-
 
 
     /*
@@ -65,41 +63,51 @@ public class AiConfiguration {
     public ChatClient chatClient(OpenAiChatModel model, ChatMemory chatMemory){
         // 1. 非空校验：核心依赖缺失直接抛异常（启动阶段提前暴露问题）
         if (model == null) {
-            log.error("OpenAiChatModel Bean未找到，请检查OpenAI配置（api-key是否正确）");
+            String errorMsg = "OpenAiChatModel Bean未找到，请检查OpenAI配置（api-key是否正确、spring.ai.openai依赖是否引入）";
+            log.error("【Bean初始化校验失败】{}", errorMsg); // 优化：日志前缀统一
             throw new ThirdPartyApiException("OpenAI大模型客户端初始化失败：核心模型Bean缺失");
         }
         if (chatMemory == null) {
-            log.error("ChatMemory Bean未找到");
+            String errorMsg = "ChatMemory Bean未找到，无法创建通用ChatClient";
+            log.error("【Bean初始化校验失败】{}", errorMsg);
             throw new BusinessException(500, "会话内存Bean缺失，无法创建通用ChatClient");
         }
         //开始初始化
         try {
-            return ChatClient.builder(model)
+            ChatClient chatClient = ChatClient.builder(model)
                     .defaultAdvisors(new SimpleLoggerAdvisor(), new MessageChatMemoryAdvisor(chatMemory))
                     .build();
+            log.info("通用ChatClient（AI问答客户端）初始化成功"); // 新增：成功日志
+            return chatClient;
         } catch (Exception e) {
-            log.error("通用ChatClient初始化失败", e);
+            log.error("【Bean初始化失败】通用ChatClient初始化失败", e);
             throw new BusinessException(500, "通用AI问答客户端初始化失败：" + e.getMessage());
         }
 
     }
-
+    // ========== 优化3：游戏ChatClient Bean（统一日志格式，异常信息补充上下文） ==========
     @Bean
     public ChatClient gameChatClient(OpenAiChatModel model,ChatMemory chatMemory){
         // 非空校验（和通用ChatClient一致，保证核心依赖）
         if (model == null) {
+            String errorMsg = "OpenAiChatModel Bean未找到，请检查OpenAI配置（api-key是否正确）";
+            log.error("【Bean初始化校验失败】{}", errorMsg);
             throw new ThirdPartyApiException("OpenAI大模型客户端初始化失败：核心模型Bean缺失");
         }
         if (chatMemory == null) {
+            String errorMsg = "ChatMemory Bean未找到，无法创建游戏（角色扮演）ChatClient";
+            log.error("【Bean初始化校验失败】{}", errorMsg);
             throw new BusinessException(500, "会话内存Bean缺失，无法创建游戏（角色扮演）ChatClient");
         }
         try {
-            return ChatClient.builder(model)
+            ChatClient chatClient = ChatClient.builder(model)
                     .defaultSystem(SystemConstants.GAME_SYSTEM_PROMPT)
                     .defaultAdvisors(new SimpleLoggerAdvisor(), new MessageChatMemoryAdvisor(chatMemory))
                     .build();
+            log.info("游戏ChatClient（角色扮演AI客户端）初始化成功"); // 新增：成功日志
+            return chatClient;
         } catch (Exception e) {
-            log.error("游戏（角色扮演）ChatClient初始化失败", e);
+            log.error("【Bean初始化失败】游戏ChatClient初始化失败", e);
             throw new BusinessException(500, "角色扮演AI客户端初始化失败：" + e.getMessage());
         }
     }
@@ -108,45 +116,57 @@ public class AiConfiguration {
     public ChatClient serviceChatClient(OpenAiChatModel model, ChatMemory chatMemory, CourseTools courseTools){
         // 非空校验：新增CourseTools（FunctionCalling工具）的校验
         if (model == null) {
+            String errorMsg = "OpenAiChatModel Bean未找到，请检查OpenAI配置（api-key是否正确）";
+            log.error("【Bean初始化校验失败】{}", errorMsg);
             throw new ThirdPartyApiException("OpenAI大模型客户端初始化失败：核心模型Bean缺失");
         }
         if (chatMemory == null) {
+            String errorMsg = "ChatMemory Bean未找到，无法创建客服ChatClient";
+            log.error("【Bean初始化校验失败】{}", errorMsg);
             throw new BusinessException(500, "会话内存Bean缺失，无法创建客服ChatClient");
         }
         if (courseTools == null) {
+            String errorMsg = "CourseTools Bean未找到，请检查FunctionCalling工具类配置（CourseTools是否加@Component注解）";
+            log.error("【Bean初始化校验失败】{}", errorMsg);
             log.error("CourseTools Bean未找到，请检查FunctionCalling工具类配置");
             throw new BusinessException(500, "FunctionCalling工具类Bean缺失，无法创建智能客服ChatClient");
         }
 
         try {
-            return ChatClient.builder(model)
+            ChatClient chatClient = ChatClient.builder(model)
                     .defaultSystem(SystemConstants.SERVICE_SYSTEM_PROMPT)
                     .defaultAdvisors(new SimpleLoggerAdvisor(), new MessageChatMemoryAdvisor(chatMemory))
                     .defaultTools(courseTools)
                     .build();
+            log.info("客服ChatClient（智能客服AI客户端）初始化成功"); // 新增：成功日志
+            return chatClient;
         } catch (Exception e) {
-            log.error("智能客服ChatClient初始化失败", e);
+            log.error("【Bean初始化失败】智能客服ChatClient初始化失败", e);
             throw new BusinessException(500, "智能客服AI客户端初始化失败：" + e.getMessage());
         }
     }
 
+    // ========== 优化5：VectorStore Bean（补充成功日志，异常信息补充RAG相关提示） ==========
     @Bean
     public VectorStore vectorStore(OpenAiEmbeddingModel embeddingModel){
         // 非空校验：向量模型是RAG/PDF问答的核心依赖
         if (embeddingModel == null) {
-            log.error("OpenAiEmbeddingModel Bean未找到，请检查OpenAI Embedding配置");
+            String errorMsg = "OpenAiEmbeddingModel Bean未找到，请检查OpenAI Embedding配置（api-key是否正确、embedding模型是否启用）";
+            log.error("【Bean初始化校验失败】{}", errorMsg);
             throw new ThirdPartyApiException("OpenAI向量模型初始化失败：核心Embedding Bean缺失");
         }
 
         try {
-            return SimpleVectorStore.builder(embeddingModel).build();
+            VectorStore vectorStore = SimpleVectorStore.builder(embeddingModel).build();
+            log.info("VectorStore（本地向量库）初始化成功（RAG核心依赖）"); // 新增：成功日志，标注RAG关联
+            return vectorStore;
         } catch (Exception e) {
-            log.error("VectorStore（本地向量库）初始化失败", e);
+            log.error("【Bean初始化失败】VectorStore（本地向量库）初始化失败", e);
             throw new BusinessException(500, "本地向量库初始化失败（RAG核心依赖）：" + e.getMessage());
         }
     }
 
-
+    // ========== 优化6：PDF ChatClient Bean（补充SearchRequest参数校验，统一日志格式） ==========
     /*openAiChatModel Bean 不是你手动写 @Bean 定义的，而是 Spring AI 自动配置 基于你 Yaml 里的配置创建的；
     自动配置的触发条件：引入 Spring AI OpenAI 依赖 + Yaml 配置 spring.ai.openai.api-key；
     只有需要自定义模型参数（如 GPT-4、不同温度）时，才需要手动定义 OpenAiChatModel 的 @Bean。*/
@@ -155,9 +175,13 @@ public class AiConfiguration {
 
         // 非空校验：PDF问答依赖向量库，必须校验
         if (model == null) {
+            String errorMsg = "OpenAiChatModel Bean未找到，请检查OpenAI配置（api-key是否正确）";
+            log.error("【Bean初始化校验失败】{}", errorMsg);
             throw new ThirdPartyApiException("OpenAI大模型客户端初始化失败：核心模型Bean缺失");
         }
         if (chatMemory == null) {
+            String errorMsg = "ChatMemory Bean未找到，无法创建PDF问答ChatClient";
+            log.error("【Bean初始化校验失败】{}", errorMsg);
             throw new BusinessException(500, "会话内存Bean缺失，无法创建PDF问答ChatClient");
         }
         if (vectorStore == null) {
@@ -167,7 +191,20 @@ public class AiConfiguration {
        /*虽然方法声明返回的是 ChatClient 接口，
         但实际被 Spring 容器纳入 Bean 管理的是 DefaultChatClient 这个具体实现类的实例。*/
         try {
-            return ChatClient.builder(model)
+            // 新增：SearchRequest参数合法性校验（避免阈值/topK配置错误导致初始化失败）
+            SearchRequest searchRequest = SearchRequest.builder()
+                    .similarityThreshold(0.3)
+                    .topK(5)
+                    .build();
+            // 校验阈值和topK的合法范围
+            if (searchRequest.getSimilarityThreshold() < 0 || searchRequest.getSimilarityThreshold() > 1) {
+                throw new IllegalArgumentException("SimilarityThreshold（相似度阈值）必须在0-1之间，当前值：" + searchRequest.getSimilarityThreshold());
+            }
+            if (searchRequest.getTopK() < 1 || searchRequest.getTopK() > 100) {
+                throw new IllegalArgumentException("TopK（召回数量）必须在1-100之间，当前值：" + searchRequest.getTopK());
+            }
+
+            ChatClient chatClient = ChatClient.builder(model)
                     .defaultSystem("""
                             你是专业的行业文档问答助手，仅基于上传的PDF文档内容回答问题：
                             1. 严格遵循文档中的原文信息作答，文档未提及的内容一律不得编造、推断或扩展；
@@ -177,17 +214,18 @@ public class AiConfiguration {
                     .defaultAdvisors(
                             new SimpleLoggerAdvisor(),
                             new MessageChatMemoryAdvisor(chatMemory),
-                            new QuestionAnswerAdvisor(
-                                    vectorStore, SearchRequest.builder()
-                                    .similarityThreshold(0.3)
-                                    .topK(5)
-                                    .build()
-                            )
+                            new QuestionAnswerAdvisor(vectorStore, searchRequest)
                     )
                     .build();
+            log.info("PDFChatClient（PDF文档问答AI客户端）初始化成功"); // 新增：成功日志
+            return chatClient;
+        } catch (IllegalArgumentException e) {
+            // 优化：精准捕获参数非法异常，单独处理（便于定位配置错误）
+            log.error("【Bean初始化参数错误】PDFChatClient初始化失败 - 参数非法：{}", e.getMessage());
+            throw new BusinessException(500, "PDF文档问答AI客户端初始化失败（参数错误）：" + e.getMessage());
         } catch (Exception e) {
-            log.error("PDF问答ChatClient初始化失败", e);
-            throw new BusinessException(500, "PDF文档问答AI客户端初始化失败：" + e.getMessage());
+            log.error("【Bean初始化失败】PDFChatClient初始化失败", e);
+            throw new BusinessException(500, "PDF文档问答AI客户端初始化失败：" + e.getMessage() + "，请检查向量库/QuestionAnswerAdvisor配置是否正常");
         }
     }
 }

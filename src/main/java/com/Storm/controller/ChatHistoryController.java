@@ -9,11 +9,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.Message;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-
+import com.Storm.validator.ValidChatType; // 新增：引入自定义校验注解
+import jakarta.validation.constraints.NotBlank; // 新增：内置非空校验注解
 import java.util.List;
 import java.util.Objects;
 
+@Validated // 新增：类上加，触发@PathVariable的注解校验
 @Slf4j
 @RequiredArgsConstructor
 @RestController
@@ -23,21 +26,24 @@ public class ChatHistoryController {
     private final ChatHistoryRepository chatHistoryRepository;
 
     private final ChatMemory chatMemory;
-    // 允许的type值（贴合你的业务：chat/service/pdf/game）
-    private static final List<String> ALLOWED_TYPES = List.of("chat", "service", "pdf", "game");
+    /** ========== 删除：原ALLOWED_TYPES常量（自定义注解已内置该规则） ==========*/
+    /**private static final List<String> ALLOWED_TYPES = List.of("chat", "service", "pdf", "game");*/
 
 
     @GetMapping("{type}")
-    public List<String> getChatIds(@PathVariable String type){
-        // 1. 入参校验：type非空+合法
+    public List<String> getChatIds(    @NotBlank(message = "会话类型不能为空（支持：chat/service/pdf/game）") // 替代type非空if
+                                       @ValidChatType(message = "会话类型不合法（支持：chat/service/pdf/game）") // 替代type合法值if
+                                       @PathVariable String type){
+        /** ========== 删除：原手动if校验（注解已替代） ==========
         if (type == null || type.isBlank()) {
             throw new ParamValidationException("会话类型不能为空（支持：chat/service/pdf/game）");
         }
         if (!ALLOWED_TYPES.contains(type)) {
             log.warn("非法的会话类型请求：{}，允许类型：{}", type, ALLOWED_TYPES);
             throw new ParamValidationException("会话类型不合法（支持：chat/service/pdf/game）");
-        }
-        // 2. 核心操作捕获异常，包装成自定义异常
+        }*/
+
+        // 2. 核心操作捕获异常，包装成自定义异常,（保留原有try-catch，仅删除手动校验）
         try {
             List<String> chatIds = chatHistoryRepository.getChatIds(type);
             // 空结果友好处理（返回空列表，保持和原逻辑一致）,避免chatHistoryRepository.getChatIds()返回 null 导致空指针
@@ -58,19 +64,23 @@ public class ChatHistoryController {
     }
 
     @GetMapping("{type}/{chatId}")
-    public List<MessageVO> getChatHistory(@PathVariable String type, @PathVariable String chatId){
-        // 1. 入参校验：type+chatId双校验
-        if (type == null || type.isBlank()) {
-            throw new ParamValidationException("会话类型不能为空（支持：chat/service/pdf/game）");
-        }
-        if (!ALLOWED_TYPES.contains(type)) {
-            log.warn("非法的会话类型请求：{}，允许类型：{}", type, ALLOWED_TYPES);
-            throw new ParamValidationException("会话类型不合法（支持：chat/service/pdf/game）");
-        }
-        if (chatId == null || chatId.isBlank()) {
-            throw new ParamValidationException("会话ID不能为空");
-        }
+    public List<MessageVO> getChatHistory( @NotBlank(message = "会话类型不能为空（支持：chat/service/pdf/game）")
+                                               @ValidChatType(message = "会话类型不合法（支持：chat/service/pdf/game）") @PathVariable String type,
+                                                @NotBlank(message = "会话ID不能为空") // 替代chatId非空if
+                                                @PathVariable String chatId){
+        /** ========== 删除：原手动if校验（注解已替代） ==========
+         * if (type == null || type.isBlank()) {
+         throw new ParamValidationException("会话类型不能为空（支持：chat/service/pdf/game）");
+         }
+         if (!ALLOWED_TYPES.contains(type)) {
+         log.warn("非法的会话类型请求：{}，允许类型：{}", type, ALLOWED_TYPES);
+         throw new ParamValidationException("会话类型不合法（支持：chat/service/pdf/game）");
+         }
+         if (chatId == null || chatId.isBlank()) {
+         throw new ParamValidationException("会话ID不能为空");
+         }*/
 
+        // 核心业务逻辑（保留原有try-catch和异常处理）
         try {
             List<Message> messages = chatMemory.get(chatId, Integer.MAX_VALUE);
             // 资源不存在：主动抛404异常（ResourceNotFoundException），而非返回空列表

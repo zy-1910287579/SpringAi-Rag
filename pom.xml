@@ -38,6 +38,14 @@
             <artifactId>spring-boot-starter-web</artifactId>
             <!-- 版本由parent的spring-boot-starter-parent自动控制，无需手动写 -->
         </dependency>
+        <!--核心是Spring Boot 版本差异导致的依赖拆分—— 是否需要引入，
+        完全取决于你的 Spring Boot 版本，且只要你想用 @Valid/@Validated 做参数校验，
+        就必须保证这个依赖存在。-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
 
         <dependency>
             <groupId>com.mysql</groupId>
