@@ -88,7 +88,11 @@ public class ChatHistoryController {
                 log.info("会话历史不存在，类型：{}，chatId：{}", type, chatId);
                 throw new ResourceNotFoundException("该会话暂无历史记录");
             }
-            return messages.stream().map(MessageVO::new).toList();
+            // 修复3：MessageVO转换时做空值防护，避免Message对象字段为null导致构造NPE
+            return messages.stream()
+                    .filter(Objects::nonNull) // 过滤null的Message对象
+                    .map(MessageVO::new)
+                    .toList();
         } catch (ResourceNotFoundException e) {
             throw e; // 资源不存在异常直接抛
         } catch (BusinessException e) {

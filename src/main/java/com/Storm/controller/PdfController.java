@@ -2,6 +2,7 @@ package com.Storm.controller;
 
 import com.Storm.entity.vo.Result;
 import com.Storm.exception.BusinessException;
+import com.Storm.exception.ThirdPartyApiException;
 import com.Storm.repository.ChatHistoryRepository;
 import com.Storm.repository.IFileService;
 import jakarta.validation.constraints.NotBlank;
@@ -46,7 +47,7 @@ public class PdfController {
 
         //这里要注意文件可能不存在,要抛出自定义异常
         Resource file = fileService.getFile(chatId);
-        if (!file.exists()) {
+        if (file == null || !file.exists()) { // 修复1：先判file是否为null，避免NPE
             throw new BusinessException(404, "文件不存在！");
         }
         // 2. 核心业务逻辑包trycatch（和ChatController风格一致）
@@ -64,10 +65,10 @@ public class PdfController {
             throw e; // 自定义异常直接抛，走全局处理器
         } catch (Exception e) {
             // 日志加上下文：chatId+文件名+截断的prompt，方便定位
-            String shortPrompt = prompt.length() > 50 ? prompt.substring(0, 50) + "..." : prompt;
+            String shortPrompt = (prompt == null || prompt.isEmpty()) ? "空提问" : (prompt.length() > 50 ? prompt.substring(0, 50) + "..." : prompt);
             log.error("PDF问答AI调用失败，chatId：{}，文件名：{}，prompt：{}", chatId, file.getFilename(), shortPrompt, e);
             // 脱敏提示，不暴露底层错误
-            throw new BusinessException(500, "PDF问答服务暂时不可用，请稍后重试");
+            throw new ThirdPartyApiException("PDF问答服务暂时不可用，请稍后重试");
         }
     }
 
@@ -81,23 +82,31 @@ public class PdfController {
     {
         try {
             // 1. 格式校验（保留）
-            if (!Objects.equals(file.getContentType(), "application/pdf")) {
-                return Result.fail("只能上传PDF文件！");
+            String contentType = file.getContentType();
+            // 修复4：contentType可能为null，先判空再比较，避免NPE
+            if (contentType == null || !Objects.equals(contentType, "application/pdf")) {
+                // 修复5：补充400错误码，和全局异常处理器的参数校验码统一
+                return Result.fail(400, "只能上传PDF文件！");
             }
             // 2. 核心保存逻辑
             boolean success = fileService.save(chatId, file.getResource());
-            if(! success) {
-                return Result.fail("保存文件失败！");
+            if(!success) {
+                // 修复6：补充400错误码，统一响应格式
+                //这只是一个简单的文件格式校验，类似于参数校验，不属于需要记录日志的业务异常场景,不用抛异常
+                return Result.fail(400, "保存文件失败！");
             }
             return Result.success();
         } catch (BusinessException e) {
             // 新增：捕获自定义业务异常，返回标准化Result
-            log.warn("PDF上传业务校验失败，chatId：{}，文件名：{}", chatId, file.getOriginalFilename(), e);
-            return Result.fail(e.getMessage());
+            String originalFileName = file.getOriginalFilename() == null ? "未知文件名" : file.getOriginalFilename(); // 修复7：文件名判空
+            log.warn("PDF上传业务校验失败，chatId：{}，文件名：{}", chatId, originalFileName, e);
+            // 修复8：补充400错误码，统一响应格式
+            return Result.fail(400, e.getMessage());
         } catch (Exception e) {
             // 通用异常兜底
-            log.error("PDF上传未知异常，chatId：{}，文件名：{}", chatId, file.getOriginalFilename(), e);
-            return Result.fail("上传文件失败！");
+            String originalFileName = file.getOriginalFilename() == null ? "未知文件名" : file.getOriginalFilename(); // 修复9：文件名判空
+            log.error("PDF上传未知异常，chatId：{}，文件名：{}", chatId, originalFileName, e);
+            return Result.fail(500,"上传文件失败！");
         }
     }
 
@@ -116,7 +125,8 @@ public class PdfController {
             if (!resource.isReadable()) {
                 throw new BusinessException(403, "文件不可读，无访问权限");
             }
-            String filename = URLEncoder.encode(Objects.requireNonNull(resource.getFilename()), StandardCharsets.UTF_8);
+            // 修复12：文件名判空，避免NPE
+            String filename = resource.getFilename() == null ? "未知文件.pdf" : URLEncoder.encode(resource.getFilename(), StandardCharsets.UTF_8);
             return ResponseEntity.ok()
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .header("Content-Disposition", "attachment; filename=\"" + filename + "\"")

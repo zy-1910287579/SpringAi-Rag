@@ -82,7 +82,7 @@ public class ChatController {
             throw e;
         } catch (Exception e) {
             // 日志带完整上下文（chatId+prompt），截断长prompt避免日志过大
-            String shortPrompt = prompt.length() > 50 ? prompt.substring(0, 50) + "..." : prompt;
+            String shortPrompt = (prompt == null || prompt.isEmpty()) ? "空提问" : (prompt.length() > 50 ? prompt.substring(0, 50) + "..." : prompt);
             log.error("AI通用问答服务调用失败，chatId：{}，prompt：{}", chatId, shortPrompt, e);
             // 大模型调用失败属于“第三方API问题”，用ThirdPartyApiException更精准（502错误码）
             /**500 = 系统内部错（比如保存会话失败），502 = 第三方服务错（比如大模型调用失败），前端可针对性提示**/

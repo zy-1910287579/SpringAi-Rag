@@ -1,6 +1,7 @@
 package com.Storm.config;
 
 import org.springframework.ai.chat.memory.InMemoryChatMemory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import com.Storm.constants.SystemConstants;
 import com.Storm.exception.BusinessException;
@@ -18,7 +19,6 @@ import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.SimpleVectorStore;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.context.annotation.Bean;
-
 import javax.swing.*;
 
 /**
@@ -29,6 +29,16 @@ import javax.swing.*;
 @Slf4j
 @Configuration
 public class AiConfiguration {
+    // 【新增】读取yml里的Redis向量库配置（和你之前加的application.yml对应）
+    @Value("${spring.ai.redis.vector.index-name}")
+    private String redisVectorIndexName;
+
+    @Value("${spring.ai.redis.vector.dimension}")
+    private int redisVectorDimension;
+
+    @Value("${spring.ai.redis.vector.distance-metric}")
+    private String redisVectorDistanceMetric;
+
 
     @Bean
     public ChatMemory chatMemory() {
@@ -128,7 +138,6 @@ public class AiConfiguration {
         if (courseTools == null) {
             String errorMsg = "CourseTools Bean未找到，请检查FunctionCalling工具类配置（CourseTools是否加@Component注解）";
             log.error("【Bean初始化校验失败】{}", errorMsg);
-            log.error("CourseTools Bean未找到，请检查FunctionCalling工具类配置");
             throw new BusinessException(500, "FunctionCalling工具类Bean缺失，无法创建智能客服ChatClient");
         }
 
@@ -165,6 +174,8 @@ public class AiConfiguration {
             throw new BusinessException(500, "本地向量库初始化失败（RAG核心依赖）：" + e.getMessage());
         }
     }
+
+
 
     // ========== 优化6：PDF ChatClient Bean（补充SearchRequest参数校验，统一日志格式） ==========
     /*openAiChatModel Bean 不是你手动写 @Bean 定义的，而是 Spring AI 自动配置 基于你 Yaml 里的配置创建的；

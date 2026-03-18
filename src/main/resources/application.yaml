@@ -2,6 +2,21 @@ spring:
   application:
     name: Try
 
+    # ========== 新增：Redis Stack 基础连接配置 ==========
+    redis:
+      # Redis Stack 服务器地址（Docker 装的话默认是localhost）
+      host: localhost
+      # Redis Stack 默认端口（和普通Redis一致，若本地Redis占用6379，可改Docker映射端口为6380，这里同步改）
+      port: 6379
+      # 若你给Redis Stack设置了密码，填这里；没设就注释/删掉
+      # password: your-redis-password
+      # 连接池配置（可选，但建议加，面试体现性能优化意识）
+      lettuce:
+        pool:
+          max-active: 8   # 最大连接数
+          max-idle: 8     # 最大空闲连接
+          min-idle: 1     # 最小空闲连接
+
   servlet:
     multipart:
       max-file-size: 30MB
@@ -20,6 +35,17 @@ spring:
         options:
           model: text-embedding-v3
           max-tokens: 1024
+      # Spring AI Redis 向量存储核心配置（对接Redisearch）
+    redis:
+      vector:
+        # Redisearch 索引名（自定义，面试提“索引命名规范”加分）
+        index-name: rag_pdf_vector_index
+        # 向量维度：text-embedding-v3 是 1536 维（必须和embedding模型匹配，否则报错）
+        dimension: 1536
+        # 相似度算法：余弦相似度（企业最常用，面试必提）
+        distance-metric: cosine
+        # 可选：向量数据类型（默认FLOAT32，不用改）
+        # data-type: FLOAT32
 
 
   datasource:
@@ -35,6 +61,22 @@ logging:
   level:
     org.springframework.ai: debug
     com.Storm: debug
+
+#它不是 “能识别 PDF 文件” 的意思，也不是 Spring Boot 内置的、自动能识别的关键词；
+#是我们为了归类 PDF 相关配置自己起的名字，目的是让配置项更清晰、不与其他配置冲突。
+#Spring Boot 不会自动识别pdf:，但我们可以通过@Value注解，明确告诉代码 “去读这个前缀下的配置
+pdf:
+  storage:
+    # 开发环境：项目根目录下的pdf-files目录（自动创建）
+    #通俗解释：Java 程序启动时的 “当前目录”；
+    #对 IDE（比如 IDEA/Eclipse）来说，默认值就是「你的项目根目录」（包含pom.xml/src/application.yml的那个文件夹）
+    base-path: ${user.dir}/pdf-files
+    # 可选：生产环境建议用绝对路径，比如 /opt/app/pdf-files
+    # base-path: /opt/app/pdf-files
+    # 字符编码（解决中文乱码）
+    charset: UTF-8
+    # 是否自动创建目录（推荐true）
+    auto-create-dir: true
 
 
 

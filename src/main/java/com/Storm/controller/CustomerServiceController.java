@@ -46,7 +46,7 @@ public class CustomerServiceController {
             throw e;
         } catch (Exception e) {
             // prompt可能包含敏感信息/过长，日志可截断（比如只取前50个字符）
-            String shortPrompt = prompt.length() > 50 ? prompt.substring(0, 50) + "..." : prompt;
+            String shortPrompt = (prompt == null || prompt.isEmpty()) ? "空提问" : (prompt.length() > 50 ? prompt.substring(0, 50) + "..." : prompt);
             log.error("AI模型调用失败，chatId：{}，prompt：{}", chatId, shortPrompt, e);
             // 脱敏：不返回e.getMessage()，避免暴露AI模型内部错误（比如API key失效、网络超时等）
             throw new BusinessException(500, "AI服务暂时不可用，请稍后重试");
